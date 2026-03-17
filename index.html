@@ -3,13 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF 自動拆分工具 (彈性智慧版)</title>
+    <title>PDF 自動拆分工具 (正式版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 PDF-Lib 用於拆分 -->
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <!-- 引入 PDF.js 用於文字/影像處理 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <!-- 引入 JSZip 用於打包 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
@@ -22,32 +19,37 @@
 <body class="bg-gray-100 min-h-screen p-4 md:p-8 text-gray-800">
     <div class="max-w-4xl mx-auto">
         <header class="mb-8 text-center">
-            <h1 class="text-3xl font-bold text-gray-900 mb-2">PDF 彈性智慧拆分器</h1>
-            <p class="text-gray-600">根據您的需求自定義分割規則，支援文字解析與 AI 影像辨識。</p>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">PDF 智慧拆分系統</h1>
+            <p class="text-gray-600">請設定 API Key 與規則後開始處理</p>
         </header>
 
-        <!-- 設定區域 -->
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-8">
+            <h3 class="font-bold text-amber-800 mb-2 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                API 安全設定 (請勿寫死在代碼中)
+            </h3>
+            <input type="password" id="apiKeyInput" placeholder="在此輸入您的 Gemini API Key" class="w-full border-amber-300 rounded-lg shadow-sm focus:ring-amber-500 focus:border-amber-500 border p-2 text-sm">
+            <p class="text-xs text-amber-600 mt-2">※ 為了安全，請在每次使用時填寫。部署至 Git 後，直接在代碼中寫死金鑰會導致被 Google 禁用 (403)。</p>
+        </div>
+
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="space-y-4">
-                <h3 class="font-bold text-lg text-blue-700 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                    </svg>
-                    基礎分割設定
-                </h3>
+                <h3 class="font-bold text-lg text-blue-700 flex items-center">基礎分割設定</h3>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">每幾頁分割一次？</label>
-                    <input type="number" id="pageSizeInput" value="10" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2">
+                    <input type="number" id="pageSizeInput" value="10" min="1" class="w-full border-gray-300 rounded-lg border p-2">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">PDF 來源類型</label>
                     <div class="flex space-x-4">
                         <label class="flex items-center cursor-pointer">
-                            <input type="radio" name="pdfType" value="text" checked class="text-blue-600 focus:ring-blue-500">
+                            <input type="radio" name="pdfType" value="text" checked class="text-blue-600">
                             <span class="ml-2 text-sm">文字型 (解析文字)</span>
                         </label>
                         <label class="flex items-center cursor-pointer">
-                            <input type="radio" name="pdfType" value="image" class="text-blue-600 focus:ring-blue-500">
+                            <input type="radio" name="pdfType" value="image" class="text-blue-600">
                             <span class="ml-2 text-sm">影像型 (AI 辨識)</span>
                         </label>
                     </div>
@@ -55,25 +57,18 @@
             </div>
 
             <div class="space-y-4">
-                <h3 class="font-bold text-lg text-blue-700 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    智慧判斷設定
-                </h3>
+                <h3 class="font-bold text-lg text-blue-700 flex items-center">智慧判斷設定</h3>
                 <div class="flex items-center">
-                    <input type="checkbox" id="enableKeywordCheck" checked class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                    <input type="checkbox" id="enableKeywordCheck" checked class="h-4 w-4 text-blue-600 rounded">
                     <label for="enableKeywordCheck" class="ml-2 text-sm font-medium text-gray-700">啟用關鍵字自動提前分割</label>
                 </div>
                 <div id="keywordConfigArea">
                     <label class="block text-sm font-medium text-gray-700 mb-1">要偵測的關鍵字</label>
-                    <input type="text" id="keywordInput" value="(續次頁)" placeholder="例如: (續次頁)" class="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2">
-                    <p class="text-xs text-gray-400 mt-1">若此頁包含關鍵字，則該頁會被移至下一份 PDF。</p>
+                    <input type="text" id="keywordInput" value="(續次頁)" class="w-full border-gray-300 rounded-lg border p-2">
                 </div>
             </div>
         </div>
 
-        <!-- 上傳區 -->
         <div id="dropZone" class="bg-white border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center transition-all cursor-pointer hover:border-blue-400 hover:bg-blue-50 group shadow-sm">
             <input type="file" id="fileInput" accept=".pdf" class="hidden">
             <div class="flex flex-col items-center">
@@ -81,54 +76,30 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <p class="text-lg font-medium text-gray-700">準備就緒，請拖放檔案至此</p>
-                <p class="text-sm text-gray-500 mt-1">系統將根據上方設定進行智慧分析</p>
             </div>
         </div>
 
-        <!-- 確認執行區 -->
-        <div id="confirmSection" class="mt-8 bg-blue-50 border border-blue-200 rounded-2xl p-6 hidden animate-in fade-in slide-in-from-top-4 duration-300">
+        <div id="confirmSection" class="mt-8 bg-blue-50 border border-blue-200 rounded-2xl p-6 hidden">
             <div class="flex flex-col md:flex-row items-center justify-between">
-                <div class="flex items-center mb-4 md:mb-0">
-                    <div class="bg-blue-600 p-2 rounded-lg text-white mr-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-sm text-blue-600 font-semibold uppercase tracking-wider">已選取檔案</p>
-                        <p id="selectedFileName" class="text-lg font-bold text-gray-800 break-all"></p>
-                    </div>
-                </div>
+                <p id="selectedFileName" class="text-lg font-bold text-gray-800 break-all"></p>
                 <div class="flex space-x-3">
-                    <button id="startProcessBtn" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 active:scale-95">
-                        確認並開始執行
-                    </button>
-                    <button id="cancelBtn" class="bg-white text-gray-500 px-6 py-3 rounded-xl font-medium border border-gray-200 hover:bg-gray-50 transition-all">
-                        取消
-                    </button>
+                    <button id="startProcessBtn" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700">確認並開始執行</button>
+                    <button id="cancelBtn" class="bg-white text-gray-500 px-6 py-3 rounded-xl border">取消</button>
                 </div>
             </div>
         </div>
 
-        <!-- 處理狀態 -->
         <div id="statusSection" class="mt-8 hidden">
             <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h2 class="text-xl font-semibold text-gray-800">處理清單</h2>
-                    <p id="processInfo" class="text-xs text-gray-500"></p>
-                </div>
+                <h2 class="text-xl font-semibold text-gray-800">處理清單</h2>
                 <div class="flex space-x-3">
-                    <button id="downloadAllBtn" class="hidden bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors shadow-md">
-                        下載全部 (ZIP)
-                    </button>
+                    <button id="downloadAllBtn" class="hidden bg-green-600 text-white px-4 py-2 rounded-lg text-sm">下載全部 (ZIP)</button>
                     <button id="resetBtn" class="text-sm text-red-500 hover:underline">重新開始</button>
                 </div>
             </div>
-            
-            <div id="progressBar" class="w-full bg-gray-200 rounded-full h-2.5 mb-6 overflow-hidden">
+            <div id="progressBar" class="w-full bg-gray-200 rounded-full h-2.5 mb-6">
                 <div id="progressFill" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
-
             <div id="fileList" class="space-y-3"></div>
         </div>
 
@@ -138,40 +109,27 @@
     <canvas id="renderCanvas" style="display:none;"></canvas>
 
     <script>
-        const apiKey = "AIzaSyA0fHUGtHKri5luTTGma7wMEL87Sb-COzM"; 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
         const { PDFDocument } = PDFLib;
+
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const statusSection = document.getElementById('statusSection');
         const confirmSection = document.getElementById('confirmSection');
         const fileList = document.getElementById('fileList');
         const progressFill = document.getElementById('progressFill');
-        const resetBtn = document.getElementById('resetBtn');
         const downloadAllBtn = document.getElementById('downloadAllBtn');
         const messageBox = document.getElementById('messageBox');
-        const processInfo = document.getElementById('processInfo');
         const renderCanvas = document.getElementById('renderCanvas');
-        const enableKeywordCheck = document.getElementById('enableKeywordCheck');
-        const keywordConfigArea = document.getElementById('keywordConfigArea');
-        const selectedFileNameDisplay = document.getElementById('selectedFileName');
-        const startProcessBtn = document.getElementById('startProcessBtn');
-        const cancelBtn = document.getElementById('cancelBtn');
+        const apiKeyInput = document.getElementById('apiKeyInput');
 
         let generatedFiles = [];
         let currentFile = null;
 
-        // UI 連動設定
-        enableKeywordCheck.addEventListener('change', () => {
-            keywordConfigArea.classList.toggle('opacity-50', !enableKeywordCheck.checked);
-            document.getElementById('keywordInput').disabled = !enableKeywordCheck.checked;
-        });
-
+        // UI 連動
         dropZone.addEventListener('click', () => fileInput.click());
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drop-zone--over'); });
-        ['dragleave', 'dragend'].forEach(type => dropZone.addEventListener(type, () => dropZone.classList.remove('drop-zone--over')));
-        
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drop-zone--over'));
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('drop-zone--over');
@@ -182,144 +140,98 @@
             if (e.target.files.length) prepareFile(e.target.files[0]);
         });
 
-        // 預備檔案，顯示確認按鈕
         function prepareFile(file) {
             if (file.type !== 'application/pdf') {
                 showMessage('請上傳 PDF 檔案', 'error');
                 return;
             }
             currentFile = file;
-            selectedFileNameDisplay.innerText = file.name;
+            document.getElementById('selectedFileName').innerText = file.name;
             confirmSection.classList.remove('hidden');
-            statusSection.classList.add('hidden'); // 如果之前有處理過，先隱藏
-            dropZone.classList.add('opacity-50', 'pointer-events-none'); // 暫時停用上傳區
         }
 
-        // 取消選擇
-        cancelBtn.addEventListener('click', () => {
-            currentFile = null;
-            confirmSection.classList.add('hidden');
-            dropZone.classList.remove('opacity-50', 'pointer-events-none');
-            fileInput.value = '';
-        });
-
-        // 確認並開始執行
-        startProcessBtn.addEventListener('click', () => {
-            if (currentFile) {
-                confirmSection.classList.add('hidden');
-                handleFile(currentFile);
+        document.getElementById('startProcessBtn').addEventListener('click', () => {
+            if (!apiKeyInput.value && document.querySelector('input[name="pdfType"]:checked').value === 'image') {
+                showMessage('影像辨識模式下，請務必輸入 API Key', 'error');
+                return;
             }
+            confirmSection.classList.add('hidden');
+            handleFile(currentFile);
         });
 
-        resetBtn.addEventListener('click', () => location.reload());
+        document.getElementById('resetBtn').addEventListener('click', () => location.reload());
 
-        downloadAllBtn.addEventListener('click', async () => {
-            if (generatedFiles.length === 0) return;
-            const zip = new JSZip();
-            downloadAllBtn.innerText = '打包中...';
-            generatedFiles.forEach(file => zip.file(file.name, file.blob));
-            const content = await zip.generateAsync({ type: "blob" });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(content);
-            link.download = `Split_PDFs_Smart.zip`;
-            link.click();
-            downloadAllBtn.innerText = '下載全部 (ZIP)';
-        });
-
-        // AI 辨識 (影像型 PDF)
-        async function checkWithAI(base64Data, keyword, pageNum) {
+        // 修正後的 API 調用：更新 URL 與 錯誤處理
+        async function checkWithAI(base64Data, keyword) {
+            const userKey = apiKeyInput.value.trim();
             const prompt = `請辨識這張圖片中是否包含文字 "${keyword}"。僅回答 JSON 格式：{"found": true} 或 {"found": false}。`;
             const payload = {
-                contents: [{
-                    role: "user",
-                    parts: [
-                        { text: prompt },
-                        { inlineData: { mimeType: "image/png", data: base64Data } }
-                    ]
-                }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: { found: { type: "BOOLEAN" } },
-                        required: ["found"]
-                    }
-                }
+                contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: base64Data } }] }]
             };
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            // 修正：使用更穩定的 v1beta 呼叫路徑
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${userKey}`;
 
-            for (let i = 0; i < 3; i++) {
-                try {
-                    const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
-                    if (!response.ok) throw new Error('API Error');
-                    const result = await response.json();
-                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                    return JSON.parse(text).found;
-                } catch (err) {
-                    if (i === 2) throw err;
-                    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+            try {
+                const response = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || 'API 403 Forbidden - 請檢查 Key 是否有效且具備權限');
                 }
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                // 去除 AI 可能回傳的 Markdown 標籤
+                const cleanJson = text.replace(/```json|```/g, '').trim();
+                return JSON.parse(cleanJson).found;
+            } catch (err) {
+                console.error("AI Error:", err);
+                throw err;
             }
         }
 
         async function handleFile(file) {
             const pageSize = parseInt(document.getElementById('pageSizeInput').value) || 10;
             const pdfType = document.querySelector('input[name="pdfType"]:checked').value;
-            const doKeywordCheck = enableKeywordCheck.checked;
             const targetKeyword = document.getElementById('keywordInput').value;
 
             statusSection.classList.remove('hidden');
-            downloadAllBtn.classList.add('hidden');
-            fileList.innerHTML = '<div class="flex items-center justify-center p-8"><div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-10 w-10"></div><span class="ml-3 text-gray-500 font-medium">正在進行智慧拆分處理...</span></div>';
-            progressFill.style.width = '5%';
+            fileList.innerHTML = '<p class="text-center p-4">處理中...</p>';
             generatedFiles = [];
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                const bufferA = arrayBuffer.slice(0);
-                const bufferB = arrayBuffer.slice(0);
-
-                const pdfJsDoc = await pdfjsLib.getDocument({ data: bufferA }).promise;
+                const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 const totalPages = pdfJsDoc.numPages;
-                const srcDoc = await PDFDocument.load(bufferB);
-                
-                processInfo.innerText = `檔案: ${file.name} (${pdfType === 'text' ? '文字解析' : 'AI 影像解析'})`;
-                fileList.innerHTML = '';
+                const srcDoc = await PDFDocument.load(arrayBuffer);
 
-                let currentStart = 0; 
+                fileList.innerHTML = '';
+                let currentStart = 0;
 
                 while (currentStart < totalPages) {
                     let targetEnd = Math.min(currentStart + pageSize - 1, totalPages - 1);
                     
-                    if (doKeywordCheck && targetEnd < totalPages - 1) {
+                    if (document.getElementById('enableKeywordCheck').checked && targetEnd < totalPages - 1) {
                         let keywordFound = false;
+                        const page = await pdfJsDoc.getPage(targetEnd + 1);
 
                         if (pdfType === 'text') {
-                            const page = await pdfJsDoc.getPage(targetEnd + 1);
                             const textContent = await page.getTextContent();
                             const pageText = textContent.items.map(item => item.str).join(' ');
                             if (pageText.includes(targetKeyword)) keywordFound = true;
                         } else {
-                            const page = await pdfJsDoc.getPage(targetEnd + 1);
                             const viewport = page.getViewport({ scale: 1.5 });
                             const context = renderCanvas.getContext('2d');
                             renderCanvas.height = viewport.height;
                             renderCanvas.width = viewport.width;
                             await page.render({ canvasContext: context, viewport: viewport }).promise;
                             const base64Image = renderCanvas.toDataURL('image/png').split(',')[1];
-                            keywordFound = await checkWithAI(base64Image, targetKeyword, targetEnd + 1);
+                            keywordFound = await checkWithAI(base64Image, targetKeyword);
                         }
 
-                        if (keywordFound) {
-                            targetEnd--; 
-                        }
+                        if (keywordFound) targetEnd--; 
                     }
 
                     if (targetEnd < currentStart) targetEnd = currentStart;
-
-                    const startDisplay = currentStart + 1;
-                    const endDisplay = targetEnd + 1;
-                    const fileName = `${startDisplay}-${endDisplay}.pdf`;
 
                     const newPdf = await PDFDocument.create();
                     const pageIndices = Array.from({length: targetEnd - currentStart + 1}, (_, i) => currentStart + i);
@@ -328,53 +240,45 @@
 
                     const pdfBytes = await newPdf.save();
                     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
-
+                    const fileName = `${currentStart + 1}-${targetEnd + 1}.pdf`;
+                    
                     generatedFiles.push({ name: fileName, blob: blob });
-                    createFileItem(fileName, url, `${pageIndices.length} 頁`);
+                    createFileItem(fileName, URL.createObjectURL(blob));
 
                     progressFill.style.width = `${Math.round(((targetEnd + 1) / totalPages) * 100)}%`;
                     currentStart = targetEnd + 1;
                 }
-
                 downloadAllBtn.classList.remove('hidden');
-                dropZone.classList.remove('opacity-50', 'pointer-events-none'); // 恢復上傳功能
-                showMessage('智慧拆分完成！', 'success');
-
+                showMessage('處理完成！', 'success');
             } catch (error) {
-                console.error(error);
                 showMessage(error.message, 'error');
-                dropZone.classList.remove('opacity-50', 'pointer-events-none');
-                fileList.innerHTML = `<div class="p-8 text-center text-red-500">處理失敗：${error.message}</div>`;
+                fileList.innerHTML = `<p class="text-red-500 p-4">錯誤：${error.message}</p>`;
             }
         }
 
-        function createFileItem(name, url, info) {
+        function createFileItem(name, url) {
             const div = document.createElement('div');
-            div.className = 'flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all';
-            div.innerHTML = `
-                <div class="flex items-center space-x-4">
-                    <div class="bg-blue-100 p-2 rounded-lg text-blue-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="font-semibold text-gray-700">${name}</p>
-                        <p class="text-xs text-gray-400">${info}</p>
-                    </div>
-                </div>
-                <a href="${url}" download="${name}" class="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors">下載</a>
-            `;
+            div.className = 'flex items-center justify-between bg-white p-4 rounded-xl border';
+            div.innerHTML = `<span>${name}</span><a href="${url}" download="${name}" class="text-blue-600 font-medium">下載</a>`;
             fileList.appendChild(div);
         }
 
         function showMessage(text, type) {
             messageBox.innerText = text;
-            messageBox.style.backgroundColor = type === 'error' ? '#ef4444' : '#1f2937';
+            messageBox.style.backgroundColor = type === 'error' ? '#ef4444' : '#10b981';
             messageBox.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => { messageBox.classList.add('translate-y-20', 'opacity-0'); }, 4000);
+            setTimeout(() => messageBox.classList.add('translate-y-20', 'opacity-0'), 4000);
         }
+
+        downloadAllBtn.addEventListener('click', async () => {
+            const zip = new JSZip();
+            generatedFiles.forEach(f => zip.file(f.name, f.blob));
+            const content = await zip.generateAsync({type:"blob"});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = "Split_PDFs.zip";
+            link.click();
+        });
     </script>
 </body>
 </html>
