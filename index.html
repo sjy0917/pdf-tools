@@ -374,13 +374,16 @@
             downloadAllBtn.classList.add('hidden');
 
             try {
+                // 取得原始檔案資料
                 const arrayBuffer = await file.arrayBuffer();
 
-                // 修正：將 ArrayBuffer 轉換為 Uint8Array 給 pdf.js 使用
-                const dataUint8 = new Uint8Array(arrayBuffer);
+                // 修正：利用 slice(0) 複製一份獨立的記憶體給 pdf.js 使用，避免被轉移剝離
+                const pdfJsBuffer = arrayBuffer.slice(0);
+                const dataUint8 = new Uint8Array(pdfJsBuffer);
                 const pdfJsDoc = await pdfjsLib.getDocument({ data: dataUint8 }).promise;
                 const totalPages = pdfJsDoc.numPages;
 
+                // 原本的 arrayBuffer 保留給 pdf-lib 安全地進行拆分處理
                 const srcDoc = await PDFDocument.load(arrayBuffer);
 
                 fileList.innerHTML = '';
