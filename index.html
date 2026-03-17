@@ -278,10 +278,19 @@
         // =============================================
         //  修正 #6：AI 辨識 — 加入 fallback，避免單頁錯誤中斷整體流程
         // =============================================
-        async function checkWithAI(base64Data, keyword) {
-            const userKey = apiKeyInput.value.trim();
-            const prompt = `請辨識這張圖片中是否包含文字「${keyword}」。只回傳 JSON 格式，不要加 Markdown 標記：{"found": true} 或 {"found": false}`;
+        //  修正 #10：Gemini 模型版本更新
+        //  gemini-1.5-flash 已從 v1beta 端點移除，
+        //  改用 gemini-2.0-flash，並加入自動降級備援清單
+        // =============================================
 
+        // 依優先順序嘗試的模型清單（由新到舊）
+        const GEMINI_MODELS = [
+            'gemini-2.0-flash',       // 目前主力推薦，免費配額充足
+            'gemini-2.0-flash-lite',  // 2.0 輕量版，速度更快
+            'gemini-1.5-flash-latest' // 最終備援（需確認 Key 是否有權限）
+        ];
+
+        async function callGeminiAPI(base64Data, prompt, modelName, userKey) {
             const payload = {
                 contents: [{
                     parts: [
@@ -290,10 +299,8 @@
                     ]
                 }]
             };
-
-            // 使用 v1beta，相容性較佳
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${userKey}`;
-
+            // v1beta 端點支援最新模型；v1 僅含穩定功能子集
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${userKey}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -302,21 +309,47 @@
 
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
-                const msg = err?.error?.message || `HTTP ${response.status}`;
-                throw new Error(`Gemini API 錯誤：${msg}`);
+                // 回傳帶 statusCode 的錯誤，讓外層判斷是否降級
+                const error = new Error(err?.error?.message || `HTTP ${response.status}`);
+                error.status = response.status;
+                throw error;
+            }
+            return response.json();
+        }
+
+        async function checkWithAI(base64Data, keyword) {
+            const userKey = apiKeyInput.value.trim();
+            const prompt  = `請辨識這張圖片中是否包含文字「${keyword}」。只回傳 JSON 格式，不要加 Markdown 標記：{"found": true} 或 {"found": false}`;
+
+            let lastError = null;
+
+            // 依序嘗試每個模型，404 = 模型不存在則自動降級
+            for (const modelName of GEMINI_MODELS) {
+                try {
+                    console.log(`[Gemini] 嘗試模型：${modelName}`);
+                    const result = await callGeminiAPI(base64Data, prompt, modelName, userKey);
+                    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{"found": false}';
+                    const cleanJson = text.replace(/```json|```/gi, '').trim();
+                    try {
+                        return JSON.parse(cleanJson).found === true;
+                    } catch {
+                        console.warn(`[Gemini] ${modelName} 回傳無法解析，視為未找到:`, text);
+                        return false;
+                    }
+                } catch (err) {
+                    lastError = err;
+                    if (err.status === 404) {
+                        // 模型不存在 → 自動嘗試下一個
+                        console.warn(`[Gemini] 模型 ${modelName} 不可用 (404)，嘗試備援模型...`);
+                        continue;
+                    }
+                    // 其他錯誤（401 金鑰錯誤、429 限流等）直接拋出，不降級
+                    throw new Error(`Gemini API 錯誤 (${modelName})：${err.message}`);
+                }
             }
 
-            const result = await response.json();
-            const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{"found": false}';
-            // 去除 AI 可能回傳的 ```json ``` 包裝
-            const cleanJson = text.replace(/```json|```/gi, '').trim();
-            try {
-                return JSON.parse(cleanJson).found === true;
-            } catch {
-                // JSON 解析失敗時視為未找到，繼續正常分割，不中斷
-                console.warn('AI 回傳無法解析，視為未找到關鍵字:', text);
-                return false;
-            }
+            // 所有模型都失敗
+            throw new Error(`所有 Gemini 模型均無法使用，請確認 API Key 是否有效。最後錯誤：${lastError?.message}`);
         }
 
         // =============================================
@@ -485,4 +518,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
