@@ -288,11 +288,52 @@
 
         // 依優先順序嘗試的模型清單（由新到舊）
         const GEMINI_MODELS = [
-            'gemini-2.0-flash',       // 目前主力推薦，免費配額充足
-            'gemini-2.0-flash-lite',  // 2.0 輕量版，速度更快
-            'gemini-1.5-flash-latest' // 最終備援（需確認 Key 是否有權限）
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-1.5-flash-latest'
         ];
 
+        // 最大重試次數（429 限流時）
+        const MAX_RETRY = 4;
+
+        // ── 倒數計時 UI ──────────────────────────────────────────────────────
+        // 在進度文字旁顯示「等待 XX 秒後重試」，不阻擋畫面
+        function showCountdown(seconds, pageLabel) {
+            return new Promise(resolve => {
+                let remaining = seconds;
+                // 每秒更新一次倒數
+                const tick = () => {
+                    progressText.innerHTML =
+                        `⏳ API 限流，等待 <strong>${remaining}</strong> 秒後自動重試（${pageLabel}）`;
+                    if (remaining <= 0) {
+                        resolve();
+                    } else {
+                        remaining--;
+                        setTimeout(tick, 1000);
+                    }
+                };
+                tick();
+            });
+        }
+
+        // ── 解析 Retry-After 或錯誤訊息中的等待秒數 ────────────────────────
+        function parseRetrySeconds(errMsg, headers) {
+            // 1. 嘗試從 Response Header 取得（標準做法）
+            if (headers) {
+                const ra = headers.get('Retry-After');
+                if (ra) {
+                    const v = parseFloat(ra);
+                    if (!isNaN(v)) return Math.ceil(v);
+                }
+            }
+            // 2. 從錯誤訊息解析 "Please retry in XX.XXs"
+            const match = errMsg?.match(/retry in ([\d.]+)s/i);
+            if (match) return Math.ceil(parseFloat(match[1]));
+            // 3. 預設等待 60 秒
+            return 60;
+        }
+
+        // ── 單次 API 呼叫 ────────────────────────────────────────────────────
         async function callGeminiAPI(base64Data, prompt, modelName, userKey) {
             const payload = {
                 contents: [{
@@ -302,7 +343,6 @@
                     ]
                 }]
             };
-            // v1beta 端點支援最新模型；v1 僅含穩定功能子集
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${userKey}`;
             const response = await fetch(url, {
                 method: 'POST',
@@ -312,47 +352,68 @@
 
             if (!response.ok) {
                 const err = await response.json().catch(() => ({}));
-                // 回傳帶 statusCode 的錯誤，讓外層判斷是否降級
                 const error = new Error(err?.error?.message || `HTTP ${response.status}`);
                 error.status = response.status;
+                error.headers = response.headers;   // 帶出 headers 供 Retry-After 解析
                 throw error;
             }
             return response.json();
         }
 
-        async function checkWithAI(base64Data, keyword) {
+        // ── 含自動重試的 AI 辨識主函式 ──────────────────────────────────────
+        async function checkWithAI(base64Data, keyword, pageLabel = '') {
             const userKey = apiKeyInput.value.trim();
             const prompt  = `請辨識這張圖片中是否包含文字「${keyword}」。只回傳 JSON 格式，不要加 Markdown 標記：{"found": true} 或 {"found": false}`;
 
             let lastError = null;
 
-            // 依序嘗試每個模型，404 = 模型不存在則自動降級
             for (const modelName of GEMINI_MODELS) {
-                try {
-                    console.log(`[Gemini] 嘗試模型：${modelName}`);
-                    const result = await callGeminiAPI(base64Data, prompt, modelName, userKey);
-                    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{"found": false}';
-                    const cleanJson = text.replace(/```json|```/gi, '').trim();
+                // 每個模型最多重試 MAX_RETRY 次（處理 429）
+                for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
                     try {
-                        return JSON.parse(cleanJson).found === true;
-                    } catch {
-                        console.warn(`[Gemini] ${modelName} 回傳無法解析，視為未找到:`, text);
-                        return false;
+                        console.log(`[Gemini] 模型：${modelName}，第 ${attempt} 次嘗試`);
+                        const result = await callGeminiAPI(base64Data, prompt, modelName, userKey);
+                        const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{"found": false}';
+                        const cleanJson = text.replace(/```json|```/gi, '').trim();
+                        try {
+                            // 成功 → 恢復進度文字格式
+                            return JSON.parse(cleanJson).found === true;
+                        } catch {
+                            console.warn(`[Gemini] 回傳無法解析，視為未找到:`, text);
+                            return false;
+                        }
+                    } catch (err) {
+                        lastError = err;
+
+                        if (err.status === 404) {
+                            // 模型不存在 → 跳出重試迴圈，換下一個模型
+                            console.warn(`[Gemini] 模型 ${modelName} 不可用 (404)，切換備援...`);
+                            break;
+                        }
+
+                        if (err.status === 429) {
+                            // ── 配額限流 ──
+                            if (attempt >= MAX_RETRY) {
+                                // 重試次數耗盡 → 換模型
+                                console.warn(`[Gemini] ${modelName} 重試 ${MAX_RETRY} 次仍限流，切換備援模型`);
+                                break;
+                            }
+                            // 解析需等待秒數並倒數
+                            const waitSec = parseRetrySeconds(err.message, err.headers);
+                            console.warn(`[Gemini] 429 限流，等待 ${waitSec} 秒後重試（第 ${attempt}/${MAX_RETRY} 次）`);
+                            await showCountdown(waitSec, pageLabel);
+                            // 倒數結束 → 繼續下一次 attempt
+                            continue;
+                        }
+
+                        // 401（金鑰錯誤）等其他狀況 → 直接拋出，不重試
+                        throw new Error(`Gemini API 錯誤 (${modelName})：${err.message}`);
                     }
-                } catch (err) {
-                    lastError = err;
-                    if (err.status === 404) {
-                        // 模型不存在 → 自動嘗試下一個
-                        console.warn(`[Gemini] 模型 ${modelName} 不可用 (404)，嘗試備援模型...`);
-                        continue;
-                    }
-                    // 其他錯誤（401 金鑰錯誤、429 限流等）直接拋出，不降級
-                    throw new Error(`Gemini API 錯誤 (${modelName})：${err.message}`);
                 }
             }
 
-            // 所有模型都失敗
-            throw new Error(`所有 Gemini 模型均無法使用，請確認 API Key 是否有效。最後錯誤：${lastError?.message}`);
+            // 所有模型、所有重試都失敗
+            throw new Error(`Gemini 所有模型均無法使用。最後錯誤：${lastError?.message}`);
         }
 
         // =============================================
@@ -415,7 +476,7 @@
                                 await page.render({ canvasContext: ctx, viewport }).promise;
                                 const base64 = renderCanvas.toDataURL('image/png').split(',')[1];
                                 // 修正 #6：API 失敗時捕捉錯誤，僅警告，不中斷
-                                keywordFound = await checkWithAI(base64, targetKeyword).catch(err => {
+                                keywordFound = await checkWithAI(base64, targetKeyword, `第 ${checkPageIndex0+1} 頁`).catch(err => {
                                     console.warn('AI 辨識失敗，跳過此頁關鍵字判斷：', err.message);
                                     showMessage(`AI 辨識警告：${err.message}`, 'error');
                                     return false;
