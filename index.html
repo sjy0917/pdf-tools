@@ -85,6 +85,31 @@
             </div>
         </div>
 
+        <!-- 確認執行區 -->
+        <div id="confirmSection" class="mt-8 bg-blue-50 border border-blue-200 rounded-2xl p-6 hidden animate-in fade-in slide-in-from-top-4 duration-300">
+            <div class="flex flex-col md:flex-row items-center justify-between">
+                <div class="flex items-center mb-4 md:mb-0">
+                    <div class="bg-blue-600 p-2 rounded-lg text-white mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-blue-600 font-semibold uppercase tracking-wider">已選取檔案</p>
+                        <p id="selectedFileName" class="text-lg font-bold text-gray-800 break-all"></p>
+                    </div>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="startProcessBtn" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200 active:scale-95">
+                        確認並開始執行
+                    </button>
+                    <button id="cancelBtn" class="bg-white text-gray-500 px-6 py-3 rounded-xl font-medium border border-gray-200 hover:bg-gray-50 transition-all">
+                        取消
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- 處理狀態 -->
         <div id="statusSection" class="mt-8 hidden">
             <div class="flex items-center justify-between mb-4">
@@ -113,13 +138,14 @@
     <canvas id="renderCanvas" style="display:none;"></canvas>
 
     <script>
-        const apiKey = ""; 
+        const apiKey = "AIzaSyA0fHUGtHKri5luTTGma7wMEL87Sb-COzM"; 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         const { PDFDocument } = PDFLib;
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const statusSection = document.getElementById('statusSection');
+        const confirmSection = document.getElementById('confirmSection');
         const fileList = document.getElementById('fileList');
         const progressFill = document.getElementById('progressFill');
         const resetBtn = document.getElementById('resetBtn');
@@ -129,8 +155,12 @@
         const renderCanvas = document.getElementById('renderCanvas');
         const enableKeywordCheck = document.getElementById('enableKeywordCheck');
         const keywordConfigArea = document.getElementById('keywordConfigArea');
+        const selectedFileNameDisplay = document.getElementById('selectedFileName');
+        const startProcessBtn = document.getElementById('startProcessBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
 
         let generatedFiles = [];
+        let currentFile = null;
 
         // UI 連動設定
         enableKeywordCheck.addEventListener('change', () => {
@@ -141,14 +171,44 @@
         dropZone.addEventListener('click', () => fileInput.click());
         dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drop-zone--over'); });
         ['dragleave', 'dragend'].forEach(type => dropZone.addEventListener(type, () => dropZone.classList.remove('drop-zone--over')));
+        
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('drop-zone--over');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+            if (e.dataTransfer.files.length) prepareFile(e.dataTransfer.files[0]);
         });
 
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) handleFile(e.target.files[0]);
+            if (e.target.files.length) prepareFile(e.target.files[0]);
+        });
+
+        // 預備檔案，顯示確認按鈕
+        function prepareFile(file) {
+            if (file.type !== 'application/pdf') {
+                showMessage('請上傳 PDF 檔案', 'error');
+                return;
+            }
+            currentFile = file;
+            selectedFileNameDisplay.innerText = file.name;
+            confirmSection.classList.remove('hidden');
+            statusSection.classList.add('hidden'); // 如果之前有處理過，先隱藏
+            dropZone.classList.add('opacity-50', 'pointer-events-none'); // 暫時停用上傳區
+        }
+
+        // 取消選擇
+        cancelBtn.addEventListener('click', () => {
+            currentFile = null;
+            confirmSection.classList.add('hidden');
+            dropZone.classList.remove('opacity-50', 'pointer-events-none');
+            fileInput.value = '';
+        });
+
+        // 確認並開始執行
+        startProcessBtn.addEventListener('click', () => {
+            if (currentFile) {
+                confirmSection.classList.add('hidden');
+                handleFile(currentFile);
+            }
         });
 
         resetBtn.addEventListener('click', () => location.reload());
@@ -203,12 +263,6 @@
         }
 
         async function handleFile(file) {
-            if (file.type !== 'application/pdf') {
-                showMessage('請上傳 PDF 檔案', 'error');
-                return;
-            }
-
-            // 讀取設定值
             const pageSize = parseInt(document.getElementById('pageSizeInput').value) || 10;
             const pdfType = document.querySelector('input[name="pdfType"]:checked').value;
             const doKeywordCheck = enableKeywordCheck.checked;
@@ -237,18 +291,15 @@
                 while (currentStart < totalPages) {
                     let targetEnd = Math.min(currentStart + pageSize - 1, totalPages - 1);
                     
-                    // 智慧分頁邏輯
                     if (doKeywordCheck && targetEnd < totalPages - 1) {
                         let keywordFound = false;
 
                         if (pdfType === 'text') {
-                            // 文字解析模式：快速
                             const page = await pdfJsDoc.getPage(targetEnd + 1);
                             const textContent = await page.getTextContent();
                             const pageText = textContent.items.map(item => item.str).join(' ');
                             if (pageText.includes(targetKeyword)) keywordFound = true;
                         } else {
-                            // 影像解析模式：呼叫 AI
                             const page = await pdfJsDoc.getPage(targetEnd + 1);
                             const viewport = page.getViewport({ scale: 1.5 });
                             const context = renderCanvas.getContext('2d');
@@ -260,7 +311,6 @@
                         }
 
                         if (keywordFound) {
-                            console.log(`第 ${targetEnd + 1} 頁發現關鍵字，調整分割點。`);
                             targetEnd--; 
                         }
                     }
@@ -288,11 +338,13 @@
                 }
 
                 downloadAllBtn.classList.remove('hidden');
+                dropZone.classList.remove('opacity-50', 'pointer-events-none'); // 恢復上傳功能
                 showMessage('智慧拆分完成！', 'success');
 
             } catch (error) {
                 console.error(error);
                 showMessage(error.message, 'error');
+                dropZone.classList.remove('opacity-50', 'pointer-events-none');
                 fileList.innerHTML = `<div class="p-8 text-center text-red-500">處理失敗：${error.message}</div>`;
             }
         }
