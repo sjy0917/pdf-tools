@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF 智慧拆分系統</title>
-    <!-- 修正 #1：改用 Tailwind Play CDN，確保所有動態類別都能正確產生 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <!-- 修正 #2：pdf.js worker 版本需與主函式庫版本完全一致，統一使用 3.11.174 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
@@ -25,7 +23,6 @@
             margin-right: 8px;
         }
         @keyframes spinner { to { transform: rotate(360deg); } }
-        /* 修正 #3：確保隱藏狀態正確套用 */
         .hidden { display: none !important; }
     </style>
 </head>
@@ -36,7 +33,6 @@
             <p class="text-gray-500 text-sm">支援文字型與影像型 PDF，可依頁數或關鍵字自動分割</p>
         </header>
 
-        <!-- API Key 設定區 -->
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-6">
             <h3 class="font-bold text-amber-800 mb-2 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -50,9 +46,7 @@
             <p class="text-xs text-amber-600 mt-2">※ 請勿將 API Key 寫入程式碼並上傳至 Git，否則 Google 會自動封鎖該金鑰。</p>
         </div>
 
-        <!-- 設定區 -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- 左欄：基礎設定 -->
             <div class="space-y-4">
                 <h3 class="font-bold text-blue-700">基礎分割設定</h3>
                 <div>
@@ -75,10 +69,8 @@
                 </div>
             </div>
 
-            <!-- 右欄：關鍵字設定 -->
             <div class="space-y-4">
                 <h3 class="font-bold text-blue-700">智慧判斷設定</h3>
-                <!-- 修正 #4：加入正確的 for/id 綁定與 change 事件（於 JS 中處理） -->
                 <div class="flex items-center">
                     <input type="checkbox" id="enableKeywordCheck" checked
                         class="h-4 w-4 text-blue-600 rounded cursor-pointer">
@@ -86,7 +78,6 @@
                         啟用關鍵字自動提前分割
                     </label>
                 </div>
-                <!-- 關鍵字輸入區，跟隨 checkbox 顯隱 -->
                 <div id="keywordConfigArea" class="space-y-1">
                     <label class="block text-sm font-medium text-gray-700">偵測關鍵字</label>
                     <input type="text" id="keywordInput" value="(續次頁)"
@@ -96,14 +87,10 @@
             </div>
         </div>
 
-        <!-- 拖放區 -->
-        <!-- 修正 #11：fileInput 改為透明覆蓋層，解決 GitHub Pages 攔截 programmatic click 問題 -->
         <div id="dropZone"
             class="relative bg-white border-2 border-dashed border-gray-300 rounded-2xl p-10 text-center transition-all cursor-pointer hover:border-blue-400 hover:bg-blue-50 group shadow-sm overflow-hidden">
-            <!-- 透明 file input 覆蓋整個區域，opacity:0 但完全可點擊，不依賴 JS .click() -->
-            <input type="file" id="fileInput" accept=".pdf"
-                style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:10;">
-            <div class="flex flex-col items-center pointer-events-none relative z-0">
+            <input type="file" id="fileInput" accept=".pdf" class="hidden">
+            <div class="flex flex-col items-center pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-14 w-14 text-gray-400 group-hover:text-blue-500 mb-4 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
@@ -112,7 +99,6 @@
             </div>
         </div>
 
-        <!-- 確認區 -->
         <div id="confirmSection" class="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-5 hidden">
             <div class="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
@@ -120,7 +106,6 @@
                     <p id="selectedFileName" class="text-base font-bold text-gray-800 break-all"></p>
                 </div>
                 <div class="flex space-x-3 flex-shrink-0">
-                    <!-- 修正 #5：cancelBtn 補上事件綁定（見 JS） -->
                     <button id="cancelBtn"
                         class="bg-white text-gray-600 px-5 py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-sm font-medium">
                         取消
@@ -133,7 +118,6 @@
             </div>
         </div>
 
-        <!-- 處理狀態區 -->
         <div id="statusSection" class="mt-6 hidden">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-lg font-semibold text-gray-800">處理清單</h2>
@@ -157,22 +141,25 @@
             <div id="fileList" class="space-y-2"></div>
         </div>
 
-        <!-- 提示訊息 -->
         <div id="messageBox"
             class="fixed bottom-5 right-5 opacity-0 translate-y-4 transition-all duration-300 bg-gray-800 text-white px-5 py-3 rounded-xl shadow-lg z-50 text-sm pointer-events-none">
         </div>
     </div>
 
-    <!-- 隱藏用 Canvas（pdf.js 渲染影像用） -->
     <canvas id="renderCanvas" style="display:none;"></canvas>
 
     <script>
         // =============================================
-        //  全域設定
+        //  全域設定 (修正 GitHub Pages Worker 跨域問題)
         // =============================================
-        // 修正 #2：worker 路徑與主函式庫版本需完全一致
-        pdfjsLib.GlobalWorkerOptions.workerSrc =
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js')
+            .then(res => res.blob())
+            .then(blob => {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+            }).catch(err => {
+                console.error('Worker Blob 載入失敗，退回預設', err);
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            });
 
         const { PDFDocument } = PDFLib;
 
@@ -198,7 +185,7 @@
         let messageTimer   = null;
 
         // =============================================
-        //  修正 #4：checkbox 控制關鍵字區域顯隱
+        //  UI 互動綁定
         // =============================================
         enableKeywordCheck.addEventListener('change', () => {
             if (enableKeywordCheck.checked) {
@@ -208,10 +195,8 @@
             }
         });
 
-        // =============================================
-        //  拖放與選擇檔案
-        // =============================================
-        // fileInput 已透明覆蓋 dropZone，點擊由瀏覽器原生處理，無需 JS 轉發
+        // 點擊 dropZone 觸發選擇檔案
+        dropZone.addEventListener('click', () => fileInput.click());
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -232,37 +217,14 @@
             if (e.target.files.length) prepareFile(e.target.files[0]);
         });
 
-        // =============================================
-        //  準備檔案（顯示確認區）
-        // =============================================
-        function prepareFile(file) {
-            if (file.type !== 'application/pdf') {
-                showMessage('請上傳 PDF 格式的檔案', 'error');
-                return;
-            }
-            currentFile = file;
-            document.getElementById('selectedFileName').innerText = file.name;
-            confirmSection.classList.remove('hidden');
-            statusSection.classList.add('hidden');
-            fileList.innerHTML = '';
-            generatedFiles = [];
-        }
-
-        // =============================================
-        //  修正 #5：取消按鈕 — 恢復初始狀態
-        // =============================================
         document.getElementById('cancelBtn').addEventListener('click', () => {
             currentFile = null;
-            fileInput.value = '';          // 清除 input 選取狀態，允許重選同一檔案
+            fileInput.value = '';
             confirmSection.classList.add('hidden');
         });
 
-        // =============================================
-        //  開始執行按鈕
-        // =============================================
         document.getElementById('startProcessBtn').addEventListener('click', () => {
             const pdfType = document.querySelector('input[name="pdfType"]:checked').value;
-            // 影像模式才強制要求 API Key
             if (pdfType === 'image' && !apiKeyInput.value.trim()) {
                 showMessage('影像辨識模式請先填入 Gemini API Key', 'error');
                 return;
@@ -271,40 +233,25 @@
             handleFile(currentFile);
         });
 
-        // =============================================
-        //  重新開始
-        // =============================================
         document.getElementById('resetBtn').addEventListener('click', () => {
             location.reload();
         });
 
         // =============================================
-        //  修正 #6：AI 辨識 — 加入 fallback，避免單頁錯誤中斷整體流程
+        //  AI 辨識相關函式 (沿用原有的重試與倒數機制)
         // =============================================
-        //  修正 #10：Gemini 模型版本更新
-        //  gemini-1.5-flash 已從 v1beta 端點移除，
-        //  改用 gemini-2.0-flash，並加入自動降級備援清單
-        // =============================================
-
-        // 依優先順序嘗試的模型清單（由新到舊）
         const GEMINI_MODELS = [
             'gemini-2.0-flash',
             'gemini-2.0-flash-lite',
             'gemini-1.5-flash-latest'
         ];
-
-        // 最大重試次數（429 限流時）
         const MAX_RETRY = 4;
 
-        // ── 倒數計時 UI ──────────────────────────────────────────────────────
-        // 在進度文字旁顯示「等待 XX 秒後重試」，不阻擋畫面
         function showCountdown(seconds, pageLabel) {
             return new Promise(resolve => {
                 let remaining = seconds;
-                // 每秒更新一次倒數
                 const tick = () => {
-                    progressText.innerHTML =
-                        `⏳ API 限流，等待 <strong>${remaining}</strong> 秒後自動重試（${pageLabel}）`;
+                    progressText.innerHTML = `⏳ API 限流，等待 <strong>${remaining}</strong> 秒後自動重試（${pageLabel}）`;
                     if (remaining <= 0) {
                         resolve();
                     } else {
@@ -316,9 +263,7 @@
             });
         }
 
-        // ── 解析 Retry-After 或錯誤訊息中的等待秒數 ────────────────────────
         function parseRetrySeconds(errMsg, headers) {
-            // 1. 嘗試從 Response Header 取得（標準做法）
             if (headers) {
                 const ra = headers.get('Retry-After');
                 if (ra) {
@@ -326,14 +271,11 @@
                     if (!isNaN(v)) return Math.ceil(v);
                 }
             }
-            // 2. 從錯誤訊息解析 "Please retry in XX.XXs"
             const match = errMsg?.match(/retry in ([\d.]+)s/i);
             if (match) return Math.ceil(parseFloat(match[1]));
-            // 3. 預設等待 60 秒
             return 60;
         }
 
-        // ── 單次 API 呼叫 ────────────────────────────────────────────────────
         async function callGeminiAPI(base64Data, prompt, modelName, userKey) {
             const payload = {
                 contents: [{
@@ -354,13 +296,12 @@
                 const err = await response.json().catch(() => ({}));
                 const error = new Error(err?.error?.message || `HTTP ${response.status}`);
                 error.status = response.status;
-                error.headers = response.headers;   // 帶出 headers 供 Retry-After 解析
+                error.headers = response.headers;
                 throw error;
             }
             return response.json();
         }
 
-        // ── 含自動重試的 AI 辨識主函式 ──────────────────────────────────────
         async function checkWithAI(base64Data, keyword, pageLabel = '') {
             const userKey = apiKeyInput.value.trim();
             const prompt  = `請辨識這張圖片中是否包含文字「${keyword}」。只回傳 JSON 格式，不要加 Markdown 標記：{"found": true} 或 {"found": false}`;
@@ -368,7 +309,6 @@
             let lastError = null;
 
             for (const modelName of GEMINI_MODELS) {
-                // 每個模型最多重試 MAX_RETRY 次（處理 429）
                 for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
                     try {
                         console.log(`[Gemini] 模型：${modelName}，第 ${attempt} 次嘗試`);
@@ -376,7 +316,6 @@
                         const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || '{"found": false}';
                         const cleanJson = text.replace(/```json|```/gi, '').trim();
                         try {
-                            // 成功 → 恢復進度文字格式
                             return JSON.parse(cleanJson).found === true;
                         } catch {
                             console.warn(`[Gemini] 回傳無法解析，視為未找到:`, text);
@@ -384,41 +323,43 @@
                         }
                     } catch (err) {
                         lastError = err;
-
                         if (err.status === 404) {
-                            // 模型不存在 → 跳出重試迴圈，換下一個模型
                             console.warn(`[Gemini] 模型 ${modelName} 不可用 (404)，切換備援...`);
                             break;
                         }
-
                         if (err.status === 429) {
-                            // ── 配額限流 ──
                             if (attempt >= MAX_RETRY) {
-                                // 重試次數耗盡 → 換模型
                                 console.warn(`[Gemini] ${modelName} 重試 ${MAX_RETRY} 次仍限流，切換備援模型`);
                                 break;
                             }
-                            // 解析需等待秒數並倒數
                             const waitSec = parseRetrySeconds(err.message, err.headers);
                             console.warn(`[Gemini] 429 限流，等待 ${waitSec} 秒後重試（第 ${attempt}/${MAX_RETRY} 次）`);
                             await showCountdown(waitSec, pageLabel);
-                            // 倒數結束 → 繼續下一次 attempt
                             continue;
                         }
-
-                        // 401（金鑰錯誤）等其他狀況 → 直接拋出，不重試
                         throw new Error(`Gemini API 錯誤 (${modelName})：${err.message}`);
                     }
                 }
             }
-
-            // 所有模型、所有重試都失敗
             throw new Error(`Gemini 所有模型均無法使用。最後錯誤：${lastError?.message}`);
         }
 
         // =============================================
         //  核心處理流程
         // =============================================
+        function prepareFile(file) {
+            if (file.type !== 'application/pdf') {
+                showMessage('請上傳 PDF 格式的檔案', 'error');
+                return;
+            }
+            currentFile = file;
+            document.getElementById('selectedFileName').innerText = file.name;
+            confirmSection.classList.remove('hidden');
+            statusSection.classList.add('hidden');
+            fileList.innerHTML = '';
+            generatedFiles = [];
+        }
+
         async function handleFile(file) {
             const pageSize      = Math.max(1, parseInt(document.getElementById('pageSizeInput').value) || 10);
             const pdfType       = document.querySelector('input[name="pdfType"]:checked').value;
@@ -433,49 +374,39 @@
             downloadAllBtn.classList.add('hidden');
 
             try {
-                // 讀取原始 PDF
                 const arrayBuffer = await file.arrayBuffer();
 
-                // pdf.js 用於讀取文字 / 渲染頁面影像
-                // 修正 #7：需複製一份 ArrayBuffer 給 pdf.js，因為 pdf-lib 也會消耗它
-                const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+                // 修正：將 ArrayBuffer 轉換為 Uint8Array 給 pdf.js 使用
+                const dataUint8 = new Uint8Array(arrayBuffer);
+                const pdfJsDoc = await pdfjsLib.getDocument({ data: dataUint8 }).promise;
                 const totalPages = pdfJsDoc.numPages;
 
-                // pdf-lib 用於拆分輸出
                 const srcDoc = await PDFDocument.load(arrayBuffer);
 
                 fileList.innerHTML = '';
-
-                // 修正 #8：currentStart / targetEnd 全程使用 0-based index
                 let currentStart = 0;
 
                 while (currentStart < totalPages) {
-                    // 預設分割終點（0-based）
                     let targetEnd = Math.min(currentStart + pageSize - 1, totalPages - 1);
 
-                    // --- 關鍵字偵測 ---
-                    // 只有當「分割邊界不是最後一頁」才偵測
                     if (useKeyword && targetEnd < totalPages - 1) {
-                        const checkPageIndex0 = targetEnd; // 0-based，即下一批的最後一頁
-                        // pdf.js getPage() 為 1-based，需 +1
+                        const checkPageIndex0 = targetEnd;
                         const page = await pdfJsDoc.getPage(checkPageIndex0 + 1);
                         let keywordFound = false;
 
                         try {
                             if (pdfType === 'text') {
-                                // 文字型：直接解析文字內容
                                 const textContent = await page.getTextContent();
                                 const pageText = textContent.items.map(item => item.str).join(' ');
                                 keywordFound = pageText.includes(targetKeyword);
                             } else {
-                                // 影像型：渲染為 PNG 後呼叫 Gemini
                                 const viewport = page.getViewport({ scale: 1.5 });
                                 const ctx = renderCanvas.getContext('2d');
                                 renderCanvas.width  = viewport.width;
                                 renderCanvas.height = viewport.height;
                                 await page.render({ canvasContext: ctx, viewport }).promise;
                                 const base64 = renderCanvas.toDataURL('image/png').split(',')[1];
-                                // 修正 #6：API 失敗時捕捉錯誤，僅警告，不中斷
+                                
                                 keywordFound = await checkWithAI(base64, targetKeyword, `第 ${checkPageIndex0+1} 頁`).catch(err => {
                                     console.warn('AI 辨識失敗，跳過此頁關鍵字判斷：', err.message);
                                     showMessage(`AI 辨識警告：${err.message}`, 'error');
@@ -486,15 +417,12 @@
                             console.warn('頁面讀取失敗，跳過關鍵字偵測：', pageErr);
                         }
 
-                        // 若關鍵字出現在邊界頁，提前一頁分割
                         if (keywordFound) {
                             targetEnd = Math.max(currentStart, targetEnd - 1);
                         }
                     }
 
-                    // --- 建立子 PDF ---
                     const newPdf = await PDFDocument.create();
-                    // 修正 #9：copyPages 的第二參數為 0-based 頁碼陣列
                     const pageIndices = [];
                     for (let i = currentStart; i <= targetEnd; i++) pageIndices.push(i);
 
@@ -503,13 +431,11 @@
 
                     const pdfBytes = await newPdf.save();
                     const blob     = new Blob([pdfBytes], { type: 'application/pdf' });
-                    // 檔名使用 1-based 頁碼（人類閱讀）
                     const fileName = `第${currentStart + 1}-${targetEnd + 1}頁.pdf`;
 
                     generatedFiles.push({ name: fileName, blob });
                     createFileItem(fileName, URL.createObjectURL(blob), targetEnd - currentStart + 1);
 
-                    // 更新進度
                     const pct = Math.round(((targetEnd + 1) / totalPages) * 100);
                     progressFill.style.width = `${pct}%`;
                     progressText.innerText   = `${targetEnd + 1} / ${totalPages} 頁（${pct}%）`;
@@ -531,7 +457,7 @@
         }
 
         // =============================================
-        //  建立檔案列表項目
+        //  UI 與下載輔助函式
         // =============================================
         function createFileItem(name, url, pageCount) {
             const div = document.createElement('div');
@@ -553,9 +479,6 @@
             fileList.appendChild(div);
         }
 
-        // =============================================
-        //  顯示提示訊息
-        // =============================================
         function showMessage(text, type = 'success') {
             messageBox.innerText = text;
             messageBox.style.backgroundColor = type === 'error' ? '#ef4444' : '#10b981';
@@ -566,9 +489,6 @@
             }, 4500);
         }
 
-        // =============================================
-        //  下載全部 ZIP
-        // =============================================
         downloadAllBtn.addEventListener('click', async () => {
             if (!generatedFiles.length) return;
             showMessage('正在壓縮打包...', 'success');
