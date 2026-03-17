@@ -190,71 +190,88 @@
         }
 
         async function handleFile(file) {
-            const pageSize = parseInt(document.getElementById('pageSizeInput').value) || 10;
-            const pdfType = document.querySelector('input[name="pdfType"]:checked').value;
-            const targetKeyword = document.getElementById('keywordInput').value;
+    const apiKey = apiKeyInput.value.trim();
+    const pdfType = document.querySelector('input[name="pdfType"]:checked').value;
+    if (pdfType === 'image' && !apiKey) return showMessage('影像辨識需要 API Key', 'error');
 
-            statusSection.classList.remove('hidden');
-            fileList.innerHTML = '<p class="text-center p-4">處理中...</p>';
-            generatedFiles = [];
+    const pageSize = parseInt(document.getElementById('pageSizeInput').value) || 10;
+    const targetKeyword = document.getElementById('keywordInput').value;
 
-            try {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                const totalPages = pdfJsDoc.numPages;
-                const srcDoc = await PDFDocument.load(arrayBuffer);
+    statusSection.classList.remove('hidden');
+    fileList.innerHTML = '<div class="p-8 text-center text-blue-600 font-medium animate-pulse">正在調用 AI 進行智慧拆分...</div>';
+    generatedFiles = [];
 
-                fileList.innerHTML = '';
-                let currentStart = 0;
+    try {
+        const arrayBuffer = await file.arrayBuffer();
 
-                while (currentStart < totalPages) {
-                    let targetEnd = Math.min(currentStart + pageSize - 1, totalPages - 1);
-                    
-                    if (document.getElementById('enableKeywordCheck').checked && targetEnd < totalPages - 1) {
-                        let keywordFound = false;
-                        const page = await pdfJsDoc.getPage(targetEnd + 1);
+        // 【關鍵修正】：使用 .slice(0) 確保兩個套件拿到的是不同的記憶體區塊
+        const pdfJsDoc = await pdfjsLib.getDocument({ 
+            data: arrayBuffer.slice(0), // 提供複本 A
+            stopAtErrors: true 
+        }).promise;
 
-                        if (pdfType === 'text') {
-                            const textContent = await page.getTextContent();
-                            const pageText = textContent.items.map(item => item.str).join(' ');
-                            if (pageText.includes(targetKeyword)) keywordFound = true;
-                        } else {
-                            const viewport = page.getViewport({ scale: 1.5 });
-                            const context = renderCanvas.getContext('2d');
-                            renderCanvas.height = viewport.height;
-                            renderCanvas.width = viewport.width;
-                            await page.render({ canvasContext: context, viewport: viewport }).promise;
-                            const base64Image = renderCanvas.toDataURL('image/png').split(',')[1];
-                            keywordFound = await checkWithAI(base64Image, targetKeyword);
-                        }
+        const srcDoc = await PDFDocument.load(arrayBuffer.slice(0)); // 提供複本 B
 
-                        if (keywordFound) targetEnd--; 
-                    }
+        const totalPages = pdfJsDoc.numPages;
+        fileList.innerHTML = '';
+        let currentStart = 0;
 
-                    if (targetEnd < currentStart) targetEnd = currentStart;
+        while (currentStart < totalPages) {
+            let targetEnd = Math.min(currentStart + pageSize - 1, totalPages - 1);
 
-                    const newPdf = await PDFDocument.create();
-                    const pageIndices = Array.from({length: targetEnd - currentStart + 1}, (_, i) => currentStart + i);
-                    const copiedPages = await newPdf.copyPages(srcDoc, pageIndices);
-                    copiedPages.forEach(p => newPdf.addPage(p));
+            // 智慧分頁判定邏輯
+            if (document.getElementById('enableKeywordCheck').checked && targetEnd < totalPages - 1) {
+                const checkIdx = targetEnd + 1;
+                let keywordFound = false;
 
-                    const pdfBytes = await newPdf.save();
-                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                    const fileName = `${currentStart + 1}-${targetEnd + 1}.pdf`;
-                    
-                    generatedFiles.push({ name: fileName, blob: blob });
-                    createFileItem(fileName, URL.createObjectURL(blob));
-
-                    progressFill.style.width = `${Math.round(((targetEnd + 1) / totalPages) * 100)}%`;
-                    currentStart = targetEnd + 1;
+                if (pdfType === 'text') {
+                    const page = await pdfJsDoc.getPage(checkIdx + 1);
+                    const content = await page.getTextContent();
+                    const text = content.items.map(i => i.str).join('');
+                    if (text.includes(targetKeyword)) keywordFound = true;
+                } else {
+                    const page = await pdfJsDoc.getPage(checkIdx + 1);
+                    const viewport = page.getViewport({ scale: 2.0 });
+                    const ctx = renderCanvas.getContext('2d');
+                    renderCanvas.height = viewport.height;
+                    renderCanvas.width = viewport.width;
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+                    const base64 = renderCanvas.toDataURL('image/png').split(',')[1];
+                    keywordFound = await checkWithAI(base64, targetKeyword, apiKey);
                 }
-                downloadAllBtn.classList.remove('hidden');
-                showMessage('處理完成！', 'success');
-            } catch (error) {
-                showMessage(error.message, 'error');
-                fileList.innerHTML = `<p class="text-red-500 p-4">錯誤：${error.message}</p>`;
+
+                if (keywordFound) {
+                    console.log(`在第 ${checkIdx + 1} 頁發現關鍵字`);
+                    // 這裡可以根據您的都更文件習慣，決定是要「提早切斷」還是「多包一頁」
+                    // 目前邏輯是讓該頁成為下一份的開頭
+                }
             }
+
+            // 執行分割
+            const newPdf = await PDFDocument.create();
+            const indices = Array.from({length: targetEnd - currentStart + 1}, (_, i) => currentStart + i);
+            const pages = await newPdf.copyPages(srcDoc, indices);
+            pages.forEach(p => newPdf.addPage(p));
+            
+            const bytes = await newPdf.save();
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const name = `${currentStart + 1}-${targetEnd + 1}.pdf`;
+            
+            generatedFiles.push({ name, blob });
+            createFileItem(name, URL.createObjectURL(blob), `${indices.length} 頁`);
+
+            currentStart = targetEnd + 1;
+            progressFill.style.width = `${(currentStart / totalPages) * 100}%`;
         }
+
+        downloadAllBtn.classList.remove('hidden');
+        showMessage('處理完成！', 'success');
+    } catch (err) {
+        console.error("處理失敗詳細資訊:", err);
+        showMessage(`處理失敗: ${err.message}`, 'error');
+        fileList.innerHTML = `<p class="text-red-500 text-center p-4 font-bold">錯誤: ${err.message}</p>`;
+    }
+}
 
         function createFileItem(name, url) {
             const div = document.createElement('div');
